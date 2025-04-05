@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:3000"); // Change to your backend URL
+const socket = io("http://localhost:3000"); // Backend URL
 
-const BloodRequestAlert = ({ userId }) => {
+const BloodRequestAlert = ({ userId, plasmaType }) => {
   const [alertMessage, setAlertMessage] = useState("");
 
   useEffect(() => {
-    socket.emit("joinRoom", userId);
+    // Join room based on userId and plasmaType
+    socket.emit("joinRoom", { userId, plasmaType });
 
     socket.on("bloodRequest", (data) => {
       setAlertMessage(data.message);
@@ -16,15 +17,15 @@ const BloodRequestAlert = ({ userId }) => {
     return () => {
       socket.off("bloodRequest");
     };
-  }, [userId]);
+  }, [userId, plasmaType]);
 
   return (
     <>
       {alertMessage && (
-        <div className="fixed top-0 left-0 flex items-center justify-center w-full h-full bg-black bg-opacity-50">
+        <div className="fixed top-0 left-0 flex items-center justify-center w-full h-full bg-black bg-opacity-50 z-50">
           <div className="p-6 text-center bg-white rounded-lg shadow-lg">
             <h2 className="text-lg font-bold text-red-600">
-              🚨 Blood Request Alert! 🚨
+              🚨 Plasma Request Alert! 🚨
             </h2>
             <p>{alertMessage}</p>
             <button

@@ -2,8 +2,31 @@ const express = require("express");
 const { Request, User, UserStatus } = require("../models");
 const { Op } = require("sequelize");
 const { sendSMS, sendEmail } = require("../utils/smsService");
+const { Server } = require("socket.io");
+const http = require("http");
+
+const app = express();
+
+const server = http.createServer(app);
+
+const io = new Server(server, { cors: { origin: "*" } });
+
 
 const router = express.Router();
+
+const plasmaCompatibility = {
+  AB: ["A", "B", "AB", "O"],
+  O: ["O"],
+  A: ["A", "AB"],
+  B: ["B", "AB"],
+};
+
+io.on("connection", (socket) => {
+  socket.on("joinRoom", ({ userId, plasmaType }) => {
+    socket.join(plasmaType);
+  });
+});
+
 
 // Haversine Formula for Distance Calculation
 const getDistance = (lat1, lon1, lat2, lon2) => {
@@ -112,7 +135,19 @@ router.post("/create/:userId", async (req, res) => {
       // );
     });
 
-    res.status(201).json({ message: "Request Created & Notifications Sent!" });
+    // Send Real-time Notification to eligible Plasma Type rooms
+    const roomsToNotify = plasmaCompatibility[bloodGroup];
+
+    roomsToNotify.forEach((room) => {
+      io.to(room).emit("bloodRequest", {
+        message: `🚨 Plasma Request! ${bloodGroup} Plasma needed near ${location} for ${patientName}`,
+      });
+    });
+
+    res.status(200).json({
+      message: "Request Created & Alerts Sent!",
+      notifiedUsers: eligibleDonors.length,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
