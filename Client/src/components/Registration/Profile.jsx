@@ -130,14 +130,10 @@ const Profile = () => {
             isInvalid={!!errors.blood_type}
           >
             <option value="">Select Blood Type</option>
-            <option value="A+">A+</option>
-            <option value="A-">A-</option>
-            <option value="B+">B+</option>
-            <option value="B-">B-</option>
-            <option value="O+">O+</option>
-            <option value="O-">O-</option>
-            <option value="AB+">AB+</option>
-            <option value="AB-">AB-</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="O">O</option>
+            <option value="AB">AB</option>
           </Form.Select>
           <Form.Control.Feedback type="invalid">
             {errors.blood_type}

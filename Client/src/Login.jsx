@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { HeartPulse, Eye, EyeOff,Menu, X } from "lucide-react";
+import { HeartPulse, Eye, EyeOff, Menu, X } from "lucide-react";
+import { io } from "socket.io-client";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
 
+const socket = io(BACKEND_URL);
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -12,6 +14,14 @@ const Login = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
+  useEffect(() => {
+    const user = JSON.parse(sessionStorage.getItem("user"));
+    const userId = user?.user?.id;
+
+    if (userId) {
+      socket.emit("register", { userId:userId });
+    }
+  }, []);
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -49,6 +59,7 @@ const Login = () => {
       const data = await response.json();
       sessionStorage.setItem("user", JSON.stringify(data));
       const userId = data.user.id;
+      socket.emit("register", { userId:userId });
 
       // Get user location
       if (navigator.geolocation) {
@@ -94,6 +105,7 @@ const Login = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      socket.emit("register", { userId:userId });
 
       if (!response.ok) {
         console.error("Failed to update user status");

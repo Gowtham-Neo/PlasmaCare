@@ -1,19 +1,23 @@
 const express = require("express");
 const http = require("http");
-const socketIo = require("socket.io");
+const { Server } = require("socket.io");
 const cors = require("cors");
+const app = express();
 require("dotenv").config();
 
-const app = express();
+app.use(express.json());
+app.use(cors());
+
 const server = http.createServer(app);
-// Handle WebSocket connections
-const io = require("socket.io")(server, {
+const io = new Server(server, {
   cors: { origin: "*" },
 });
 
 
-app.use(express.json());
-app.use(cors());
+const { socketHandler, onlineUsers } = require("./socket/socketHandler");
+socketHandler(io);
+
+app.set("io", io);
 
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
@@ -26,27 +30,7 @@ app.use("/api/userstatus", userStatusRoutes);
 app.use("/api/request", requestRoutes);
 
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  socket.on("joinRoom", (userId) => {
-    socket.join(userId);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-  });
-});
-
-const alertNearbyUsers = (nearbyUsers, bloodGroup, hospitalName) => {
-  nearbyUsers.forEach((user) => {
-    io.to(user.id).emit("bloodRequest", {
-      message: `Urgent Blood Request! ${bloodGroup} needed at ${
-        hospitalName || "the given location"
-      }.`,
-    });
-  });
-};
-
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, "0.0.0.0", () =>
+  console.log(`Server running on port ${PORT}`)
+);

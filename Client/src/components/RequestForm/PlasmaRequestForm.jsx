@@ -145,12 +145,12 @@ const PlasmaRequestForm = () => {
           body: JSON.stringify(formData),
         }
       );
-
+      const data = await response.json();
+      console.log(data);
       if (response.ok) {
         alert("Request submitted! Notifications sent.");
       } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.error}`);
+        alert(`Error: ${data.error}`);
         console.log(errorData);
       }
     } catch (error) {

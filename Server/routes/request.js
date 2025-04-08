@@ -1,18 +1,14 @@
 const express = require("express");
-const { Request, User, UserStatus } = require("../models");
+const { Request, User, UserStatus,RequestStatus } = require("../models");
 const { Op } = require("sequelize");
 const { sendSMS, sendEmail } = require("../utils/smsService");
 const { Server } = require("socket.io");
 const http = require("http");
-
 const app = express();
-
 const server = http.createServer(app);
 
-const io = new Server(server, { cors: { origin: "*" } });
-
-
 const router = express.Router();
+const { socketHandler, onlineUsers } = require("../socket/socketHandler");
 
 const plasmaCompatibility = {
   AB: ["A", "B", "AB", "O"],
@@ -20,13 +16,6 @@ const plasmaCompatibility = {
   A: ["A", "AB"],
   B: ["B", "AB"],
 };
-
-io.on("connection", (socket) => {
-  socket.on("joinRoom", ({ userId, plasmaType }) => {
-    socket.join(plasmaType);
-  });
-});
-
 
 // Haversine Formula for Distance Calculation
 const getDistance = (lat1, lon1, lat2, lon2) => {
@@ -48,6 +37,8 @@ const axios = require("axios");
 
 router.post("/create/:userId", async (req, res) => {
   const { userId } = req.params;
+  const io = req.app.get("io");
+
   try {
     const {
       patientName,
@@ -92,25 +83,21 @@ router.post("/create/:userId", async (req, res) => {
       userId,
     });
 
-    // Find all online users within 30 km
     const nearbyUsers = await UserStatus.findAll({ where: { isOnline: true } });
 
     const eligibleUsers = nearbyUsers.filter(
       (user) =>
         getDistance(latitude, longitude, user.latitude, user.longitude) <= 30
     );
+    console.log("eligible", eligibleUsers);
 
-    // Send SMS to eligible users
-    // eligibleUsers.forEach((user) => {
-    //   sendSMS(
-    //     user.phone,
-    //     `Urgent Blood Request! ${bloodGroup} needed at ${
-    //       hospitalName || "the given location"
-    //     }. Please help!`
-    //   );
-    // });
+    onlineUsers.forEach(({ socketId }, onlineUserId) => {
+      io.to(socketId).emit("new-request-alert", {
+        message: "New Blood Request Raised!",
+        requestData: newRequest,
+      });
+    });
 
-    // Send Email & SMS to all registered users
     const allUsers = await User.findAll({
       attributes: ["email", "phone_number"],
     });
@@ -126,27 +113,11 @@ router.post("/create/:userId", async (req, res) => {
         Urgency: ${urgency}. Number of Patients: ${numberOfPatients}. 
         Contact: ${contact}. Message: ${message}`
       );
-
-      // sendSMS(
-      //   user.phone,
-      //   `Urgent: ${bloodGroup} needed at ${
-      //     hospitalName || location
-      //   }. Check your email for details.`
-      // );
-    });
-
-    // Send Real-time Notification to eligible Plasma Type rooms
-    const roomsToNotify = plasmaCompatibility[bloodGroup];
-
-    roomsToNotify.forEach((room) => {
-      io.to(room).emit("bloodRequest", {
-        message: `🚨 Plasma Request! ${bloodGroup} Plasma needed near ${location} for ${patientName}`,
-      });
     });
 
     res.status(200).json({
       message: "Request Created & Alerts Sent!",
-      notifiedUsers: eligibleDonors.length,
+      eligibleUsers,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -154,4 +125,31 @@ router.post("/create/:userId", async (req, res) => {
 });
 
 
+router.post('/accept', async (req, res) => {
+  const { requestId, donorId } = req.body;
+
+  try {
+    const requestStatus = await RequestStatus.findOne({
+      where: { requestId, status: 'Pending' }
+    });
+
+    if (!requestStatus) {
+      return res.status(400).json({ message: 'Request Already Accepted or Invalid' });
+    }
+
+    await requestStatus.update({
+      donorId,
+      status: 'Accepted'
+    });
+
+    // Emit to all users via socket
+    req.io.emit('request-accepted', { requestId, donorId });
+
+    res.status(200).json({ message: 'Request Accepted Successfully' });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
 module.exports = router;
